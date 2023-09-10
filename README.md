@@ -1,0 +1,116 @@
+# 分库分表组件
+
+## 背景
+
+读写分离主要应对的是数据库读并发，没有解决数据库存储问题。
+
+MySQL可以通过增加从库来解决**读扩展**问题。但是，对于写MySQL存在单机容量的限制。另外，数据库的整体容量受限于单机硬盘的限制。写容量限制是受限于MySQL数据库单机处理能力限制。如果能将数据拆为多份，不同数据放在不同机器上，就可以方便对容量进行扩展。
+
+换言之，**我们该如何解决 MySQL 的存储压力呢？**答案之一就是 **分库分表**。
+
+
+
+## 什么是分库
+
+**分库** 就是将数据库中的数据分散到不同的数据库上，可以垂直分库，也可以水平分库。
+
+**垂直分库** 就是把单一数据库按照业务进行划分，不同的业务使用不同的数据库，进而将一个数据库的压力分担到多个数据库。
+
+举个例子：将数据库中的用户表、订单表和商品表分别单独拆分为用户数据库、订单数据库和商品数据库。容量得到一定提升。但是，分库并不能解决单表容量超过单机限制的问题。
+
+![垂直分库](data:image/png;base64,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)
+
+**水平分库** 是把同一个表按一定规则拆分到不同的数据库中，每个库可以位于不同的服务器上，这样就实现了水平扩展，解决了**单表的存储和性能瓶颈**的问题。
+
+举个例子：订单表数据量太大，你对订单表进行了水平切分（水平分表），然后将切分后的 2 张订单表分别放在两个不同的数据库。
+
+![图片](https://mmbiz.qpic.cn/mmbiz_jpg/hEx03cFgUsWUTJ5EXYoebiaRNeqPEHNA8xoLzdic3TB7cZiaGnDKdibsic9RGvbBb3iciabkLtibpDjmMGEPa4viaeCS4OQ/640?wx_fmt=jpeg&tp=wxpic&wxfrom=5&wx_lazy=1&wx_co=1) 
+
+
+
+MySQL可以通过增加从库来解决读扩展问题。但是，对于写MySQL存在单机容量的限制。另外，数据库的整体容量受限于单机硬盘的限制。写容量限制是受限于MySQL数据库单机处理能力限制。如果能将数据拆为多份，不同数据放在不同机器上，就可以方便对容量进行扩展。
+
+对数据进行拆分一般分为两步，第一步是分库，即将不同表放不同库不同机器上。经过第一步分库后，容量得到一定提升。但是，分库并不能解决单表容量超过单机限制的问题。针对表超过单库容量的问题，需要进行分表操作，即将表数据进行拆分。单表数据拆分后，解决了写的问题。
+
+
+
+## 组件实现
+
+结合应用开发框架（Spring+MyBatis），实现了一个轻量级的分库分表组件，避免将分库分表逻辑嵌入到业务代码。分库分表插件的实现包括如下几个要点。
+
+- 配置文件管理分库分表配置信息
+- Java注解说明SQL语句分库分表信息
+- JavaAOP解析注解+查询配置文件，获取数据源及表名
+- MyBatis动态替换表名
+- Spring动态替换数据源
+- 连接池及SQL监控
+
+![img](https://cdn.nlark.com/yuque/0/2023/png/22676949/1693361410410-7785a432-83fc-4702-9b67-e7f4672194ab.png?x-oss-process=image%2Fresize%2Cw_750%2Climit_0) 
+
+### 连接池及SQL监控
+
+DB连接池使用不合理容易引发很多问题，如连接池最大连接数设置过小导致线程获取不到连接、获取连接等待时间设置过大导致很多线程挂起、空闲连接回收器运行周期过长导致空闲连接回收不及时等等，如果缺乏有效准确的监控，会造成无法快速定位问题以及追溯历史。
+
+再者，如果缺乏SQL执行情况相关监控，会很难及时发现DB慢查询等潜在风险，而慢查询往往就是DB服务端性能恶化乃至宕机的根源。
+
+#### **连接池监控**
+
+结合Spring完美适配c3p0、dbcp1、dbcp2、mtthrift等多种方案，自动发现新加入到Spring容器中的数据源进行监控。
+
+重要参数：连接池active、idle、total连接数量，空闲连接时间。
+
+#### **SQL监控**
+
+采用Spring AOP技术对所有DAO方法进行功能增强处理，进行SQL调用数据埋点及上报，进而实现从客户端角度对SQL执行耗时、QPS、调用量、超时率、失败率等指标进行监控。 
+
+### 动态化配置
+
+为了满足一些动态化需求，如解决线上DB紧急事故需动态调整数据源或者分库分表相关配置，要求无需重启在线修改立即生效。
+
+#### 实现
+
+在Nacos配置管理页面可以进行动态调整，Nacos客户端在感知到变更事件后会刷新本地配置，如果是数据源配置变更会根据新的配置构造出一个新数据源来替换老数据源，最后再将老的数据源优雅关闭掉。 
+
+重要参数：分库分表数量、分库分表策略、唯一键生成策略、唯一键业务方标识等 。
+
+
+
+TODO：补充详细设计
+
+
+
+## 引申问题
+
+通过分库分表，解决了**写容量扩展**问题。但是分表后，会给查询带来一定的限制，只能支持主要维度的查询，其它维度的查询效率存在问题。
+
+> 一般情况下，订单数据分表都是按userid进行的，因为我们希望同一个用户的数据存储在一张表中，便于查询。当给定一个订单号的时候，我们无法判别这个订单在哪个分表，所以大多数订单系统同时维护了一个订单号和userid的关联关系，先根据订单号查到userid，再根据userid确定分表进而查询得到内容。 
+
+### 解决方案
+
+以订单场景为例，由原来一个表分配改为100张表同时分配，业务逻辑上根据不同的表名执行一个简单的运算得到最终的订单号。
+
+ ![图片](https://mmbiz.qpic.cn/mmbiz_png/hEx03cFgUsWW8bRu4Y1S2J2mmuKyLGoFyicQs6Dbzy8jcibhIzCRa2ia6uicXC8z77IB1Kg6Q5O8FWwRIiacAmQgzXw/640?wx_fmt=png&tp=wxpic&wxfrom=5&wx_lazy=1&wx_co=1) 
+
+与用户绑定：对订单系统而言，每个用户有一个唯一的userid，我们可以根据这个userid的末2位去对应的id_x表取订单号，例如userid为10086的用户去id_86表取到值为42，那订单号就42*100+86=4286。
+
+将订单内容根据userid模100分表后如下图：
+
+![图片](https://mmbiz.qpic.cn/mmbiz_png/hEx03cFgUsWW8bRu4Y1S2J2mmuKyLGoFYdSUjjHQT4uuFpUsOVGNkD9PMPY0UdNqTdWtdCc3mEia9qsA2U9I3Qw/640?wx_fmt=png&tp=wxpic&wxfrom=5&wx_lazy=1&wx_co=1)
+
+即通过id表计算出订单号，订单号和useid写入order_user表中。当然也可以把查id表改为如下几个方式，只要保证id唯一即可：
+
+![图片](https://mmbiz.qpic.cn/mmbiz_png/hEx03cFgUsX59XI9MDD1b9icdib6gtIz52hkhaHTWIRfYU7u4B6Fp7ibfyAouJIIRzubnzFGM5HrsGpheua8FQDMw/640?wx_fmt=png&tp=wxpic&wxfrom=5&wx_lazy=1&wx_co=1) 
+
+通过上面的trick，我们发现订单根据“userid取模”分表和根据“订单号取模”来分表结果是一样的，因为后两位数一样。到此，分库操作就相当简单容易了，极限情况下分成100个库，每个库两个表。同一个用户的请求一定在同一个库完成操作，达到了完全拆分。
+
+给定订单号的情况下，单次查询由原来2条SQL变为1条，查询量减少50%，极大提升了系统高并发下性能。 
+
+
+
+## 总结
+
+- 数据库拆分一般是业务发展到一定规模后的优化和重构，为了支持业务快速上线，很难一开始就分库分表，垂直拆分还好办，改改数据源就搞定了，一旦开始水平拆分，数据清洗就是个大问题 。
+- 并非所有表都需要水平拆分，要看增长的类型和速度，水平拆分是大招，拆分后会增加开发的复杂度，不到万不得已不使用。
+- 在大规模并发的业务上，尽量做到在线查询和离线查询隔离，C端查询和产运查询隔离。
+- 拆分维度的选择很重要，要尽可能在解决拆分前问题的基础上，便于开发。
+- 数据库没你想象的那么坚强，需要保护，尽量使用简单的、良好索引的查询，这样数据库整体可控，也易于长期容量规划以及水平扩展。
